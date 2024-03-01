@@ -17,8 +17,7 @@ User = get_user_model()
 REST_FRIENDSHIP = getattr(settings, "REST_FRIENDSHIP", None)
 PERMISSION_CLASSES = [import_string(c)
                       for c in REST_FRIENDSHIP["PERMISSION_CLASSES"]]
-USER_SERIALIZER = import_string(REST_FRIENDSHIP["USER_SERIALIZER"])
-
+USER_SERIALIZER = import_string(REST_FRIENDSHIP["USER_SERIALIZER"]) if 'USER_SERIALIZER' in REST_FRIENDSHIP else FriendSerializer
 
 class FriendViewSet(viewsets.ModelViewSet):
     """
@@ -32,14 +31,14 @@ class FriendViewSet(viewsets.ModelViewSet):
         friend_requests = Friend.objects.friends(user=request.user)
         self.queryset = friend_requests
         self.http_method_names = ['get', 'head', 'options', ]
-        return Response(FriendSerializer(friend_requests, many=True).data)
+        return Response(self.serializer_class(friend_requests, many=True).data)
 
     def retrieve(self, request, pk=None):
         self.queryset = Friend.objects.friends(user=request.user)
         requested_user = get_object_or_404(User, pk=pk)
         if Friend.objects.are_friends(request.user, requested_user):
             self.http_method_names = ['get', 'head', 'options', ]
-            return Response(FriendSerializer(requested_user, many=False).data)
+            return Response(self.serializer_class(requested_user, many=False).data)
         else:
             return Response(
                 {'message': "Friend relationship not found for user."},

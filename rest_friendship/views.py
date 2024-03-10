@@ -19,12 +19,16 @@ PERMISSION_CLASSES = [import_string(c)
                       for c in REST_FRIENDSHIP["PERMISSION_CLASSES"]]
 USER_SERIALIZER = import_string(REST_FRIENDSHIP["USER_SERIALIZER"]) if 'USER_SERIALIZER' in REST_FRIENDSHIP else FriendSerializer
 
+FRIENDSHIPREQUEST_SERIALIZER = import_string(REST_FRIENDSHIP["FRIENDSHIPREQUEST_SERIALIZER"]) if 'FRIENDSHIPREQUEST_SERIALIZER' in REST_FRIENDSHIP else FriendshipRequestSerializer
+
 class FriendViewSet(viewsets.ModelViewSet):
     """
     ViewSet for Friend model
     """
     permission_classes = PERMISSION_CLASSES
     serializer_class = USER_SERIALIZER
+    friendshiprequest_serializer_class = FRIENDSHIPREQUEST_SERIALIZER
+    
     lookup_field = 'pk'
 
     def list(self, request):
@@ -50,24 +54,24 @@ class FriendViewSet(viewsets.ModelViewSet):
         friend_requests = Friend.objects.unrejected_requests(user=request.user)
         self.queryset = friend_requests
         return Response(
-            FriendshipRequestSerializer(friend_requests, many=True).data)
+            self.friendshiprequest_serializer_class(friend_requests, many=True).data)
 
     @ action(detail=False)
     def sent_requests(self, request):
         friend_requests = Friend.objects.sent_requests(user=request.user)
         self.queryset = friend_requests
         return Response(
-            FriendshipRequestSerializer(friend_requests, many=True).data)
+            self.friendshiprequest_serializer_class(friend_requests, many=True).data)
 
     @ action(detail=False)
     def rejected_requests(self, request):
         friend_requests = Friend.objects.rejected_requests(user=request.user)
         self.queryset = friend_requests
         return Response(
-            FriendshipRequestSerializer(friend_requests, many=True).data)
+            self.friendshiprequest_serializer_class(friend_requests, many=True).data)
 
     @ action(detail=False,
-             serializer_class=FriendshipRequestSerializer,
+             serializer_class=FRIENDSHIPREQUEST_SERIALIZER,
              methods=['post'])
     def add_friend(self, request, username=None):
         """
@@ -95,7 +99,7 @@ class FriendViewSet(viewsets.ModelViewSet):
                 message=request.data.get('message', '')
             )
             return Response(
-                FriendshipRequestSerializer(friend_obj).data,
+                self.friendshiprequest_serializer_class(friend_obj).data,
                 status.HTTP_201_CREATED
             )
         except (AlreadyExistsError, AlreadyFriendsError) as e:
@@ -104,7 +108,7 @@ class FriendViewSet(viewsets.ModelViewSet):
                 status.HTTP_400_BAD_REQUEST
             )
 
-    @ action(detail=False, serializer_class=FriendshipRequestSerializer, methods=['post'])
+    @ action(detail=False, serializer_class=FRIENDSHIPREQUEST_SERIALIZER, methods=['post'])
     def remove_friend(self, request):
         """
         Deletes a friend relationship.

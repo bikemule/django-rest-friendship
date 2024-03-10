@@ -49,6 +49,24 @@ class FriendViewSet(viewsets.ModelViewSet):
                 status.HTTP_400_BAD_REQUEST
             )
 
+    def get_user_from_friend_data(self, data, allow_id=False):
+        user_data = { }
+        if 'username' in data:
+            user_data['username'] = data.get('username')
+        # Keep compatibility
+        if 'to_user' in data:
+            user_data['username'] = data.get('to_user')
+        if 'email' in data:
+            user_data['email'] = data.get('email')
+        # Prevent lookup by id, so users cannot try to befriend every ID (while allowing to remove friendship)
+        if allow_id and 'id' in data:
+                user_data['id'] = data.get('id')
+                
+        return get_object_or_404(
+            User,
+            **user_data
+        )
+
     @ action(detail=False)
     def requests(self, request):
         friend_requests = Friend.objects.unrejected_requests(user=request.user)
@@ -70,24 +88,14 @@ class FriendViewSet(viewsets.ModelViewSet):
         return Response(
             self.friendshiprequest_serializer_class(friend_requests, many=True).data)
 
-    @ action(detail=False,
-             serializer_class=FRIENDSHIPREQUEST_SERIALIZER,
-             methods=['post'])
-    def add_friend(self, request, username=None):
+    @ action(detail=False, methods=['post'])
+    def add_friend(self, request):
         """
         Add a new friend with POST data
-        - to_user
+        - username
         - message
         """
-        # Creates a friend request from POST data:
-        # - username
-        # - message
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        to_user = get_object_or_404(
-            User,
-            username=serializer.validated_data.get('to_user')
-        )
+        to_user = self.get_user_from_friend_data(request.data, allow_id=False)
 
         try:
             friend_obj = Friend.objects.add_friend(
@@ -108,7 +116,7 @@ class FriendViewSet(viewsets.ModelViewSet):
                 status.HTTP_400_BAD_REQUEST
             )
 
-    @ action(detail=False, serializer_class=FRIENDSHIPREQUEST_SERIALIZER, methods=['post'])
+    @ action(detail=False, methods=['post'])
     def remove_friend(self, request):
         """
         Deletes a friend relationship.
@@ -116,12 +124,7 @@ class FriendViewSet(viewsets.ModelViewSet):
         The username specified in the POST data will be
         removed from the current user's friends.
         """
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        to_user = get_object_or_404(
-            User,
-            username=serializer.validated_data.get('to_user')
-        )
+        to_user = self.get_user_from_friend_data(request.data, allow_id=True)
 
         if Friend.objects.remove_friend(request.user, to_user):
             message = 'Friend deleted.'
